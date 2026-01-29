@@ -1,6 +1,13 @@
 import streamlit as st
 import pandas as pd
 from utils.validators import validate_dataframe
+from utils.visualizations import (
+    create_score_gauge,
+    create_problems_bar_chart,
+    create_missing_data_chart,
+    create_quality_distribution_pie,
+    create_column_quality_bar
+)
 
 # Configuration
 st.set_page_config(
@@ -40,6 +47,7 @@ with st.sidebar:
     - Validation de téléphones
     - Données manquantes
     - Score de qualité
+    - Graphiques interactifs
     """)
     
     st.divider()
@@ -86,11 +94,15 @@ if uploaded_file:
             emoji = "⚠️"
             message = "À améliorer"
         
-        col1, col2, col3 = st.columns([2, 1, 1])
+        col1, col2 = st.columns(2)
         
         with col1:
             st.markdown(f"<div class='big-metric' style='color: {color};'>{score}/100 {emoji}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='metric-label'>{message}</div>", unsafe_allow_html=True)
+        
+        with col2:
+            gauge_fig = create_score_gauge(score)
+            st.plotly_chart(gauge_fig, use_container_width=True)
         
         # MÉTRIQUES CLÉS
         st.header("📈 Métriques Clés")
@@ -128,25 +140,47 @@ if uploaded_file:
         # DÉTAILS
         st.header("🔍 Analyse Détaillée")
         
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Aperçu", "🔄 Doublons", "✉️ Emails", "📱 Téléphones"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Aperçu", "📈 Graphiques", "🔄 Doublons", "✉️ Emails", "📱 Téléphones"])
         
         with tab1:
             st.subheader("Aperçu des données")
             st.dataframe(df.head(20), use_container_width=True)
             
-            st.subheader("Données manquantes par colonne")
-            missing_df = pd.DataFrame({
-                'Colonne': results['missing_values']['by_column'].keys(),
-                'Manquants': results['missing_values']['by_column'].values()
-            })
-            missing_df = missing_df[missing_df['Manquants'] > 0].sort_values('Manquants', ascending=False)
+            st.subheader("Statistiques")
+            col1, col2 = st.columns(2)
             
-            if len(missing_df) > 0:
-                st.dataframe(missing_df, use_container_width=True)
+            with col1:
+                st.metric("Lignes totales", results['total_rows'])
+                st.metric("Colonnes totales", results['total_columns'])
+            
+            with col2:
+                st.metric("Cellules totales", results['total_rows'] * results['total_columns'])
+                st.metric("Score de qualité", f"{score}/100")
+        
+        with tab2:
+            st.subheader("📊 Visualisations")
+            
+            # Graphique des problèmes
+            st.plotly_chart(create_problems_bar_chart(results), use_container_width=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Camembert de répartition
+                st.plotly_chart(create_quality_distribution_pie(results), use_container_width=True)
+            
+            with col2:
+                # Qualité par colonne
+                st.plotly_chart(create_column_quality_bar(df), use_container_width=True)
+            
+            # Données manquantes
+            missing_fig = create_missing_data_chart(results, df)
+            if missing_fig:
+                st.plotly_chart(missing_fig, use_container_width=True)
             else:
                 st.success("✅ Aucune donnée manquante !")
         
-        with tab2:
+        with tab3:
             st.subheader("Doublons détectés")
             if results['duplicates']['count'] > 0:
                 st.warning(f"⚠️ {results['duplicates']['count']} lignes dupliquées trouvées")
@@ -154,7 +188,7 @@ if uploaded_file:
             else:
                 st.success("✅ Aucun doublon détecté !")
         
-        with tab3:
+        with tab4:
             st.subheader("Validation des emails")
             if 'emails' in results:
                 for col, data in results['emails'].items():
@@ -173,7 +207,7 @@ if uploaded_file:
             else:
                 st.info("ℹ️ Aucune colonne email détectée")
         
-        with tab4:
+        with tab5:
             st.subheader("Validation des téléphones")
             if 'phones' in results:
                 for col, data in results['phones'].items():
