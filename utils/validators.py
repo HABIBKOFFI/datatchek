@@ -1,265 +1,13 @@
 # validators.py
 """
-Validateurs robustes pour DataTchek
-Inclut validateurs spécifiques Côte d'Ivoire
+Validateurs sémantiques pour DataTchek
+Focus sur la cohérence type de données vs nom de colonne (style Dataiku DSS)
 """
 
 import pandas as pd
-import re
+import numpy as np
 from typing import Dict, Any, List
 from .column_detector import analyze_columns
-
-
-class CIValidators:
-    """Validateurs spécifiques Côte d'Ivoire"""
-    
-    @staticmethod
-    def validate_phone_ci(phone: Any) -> bool:
-        """
-        Valide les numéros de téléphone ivoiriens
-        
-        Formats acceptés :
-        - +225 XX XX XX XX XX (10 chiffres après +225)
-        - +225XXXXXXXXXX
-        - 07 12 34 56 78 (format local)
-        - 0712345678 (format local sans espaces)
-        - 225XXXXXXXXXX (sans +)
-        
-        Returns:
-            bool: True si valide, False sinon
-        """
-        if pd.isna(phone):
-            return False
-        
-        # Conversion en string et nettoyage
-        phone_str = str(phone).strip()
-        
-        # Si vide après nettoyage
-        if not phone_str or phone_str == '' or phone_str == 'nan':
-            return False
-        
-        # Suppression de tous les espaces, tirets, parenthèses
-        phone_clean = re.sub(r'[\s\-\(\)\.]', '', phone_str)
-        
-        # Patterns valides pour CI
-        patterns = [
-            r'^\+225\d{10}$',           # +225XXXXXXXXXX
-            r'^225\d{10}$',              # 225XXXXXXXXXX (sans +)
-            r'^\d{10}$',                 # XXXXXXXXXX (10 chiffres)
-            r'^0[0-9]{9}$',              # 0XXXXXXXXX (commence par 0)
-        ]
-        
-        # Test de tous les patterns
-        for pattern in patterns:
-            if re.match(pattern, phone_clean):
-                # Validation supplémentaire : préfixes valides CI
-                # En CI, les mobiles commencent par 01, 05, 07, etc.
-                if phone_clean.startswith('+225'):
-                    first_digits = phone_clean[4:6]
-                elif phone_clean.startswith('225'):
-                    first_digits = phone_clean[3:5]
-                elif len(phone_clean) == 10:
-                    first_digits = phone_clean[0:2]
-                else:
-                    return False
-                
-                # Préfixes mobiles valides CI (liste non exhaustive)
-                valid_prefixes = ['01', '02', '03', '05', '07', '08', '09']
-                if first_digits in valid_prefixes:
-                    return True
-        
-        return False
-
-   def generate_recommendations(results):
-   	 """Génère une liste de recommandations basées sur les résultats du DataFrame"""
-   	 recommendations = []
-
-    	if results['duplicates']['count'] > 0:
-        recommendations.append(f"Supprimer les {results['duplicates']['count']} doublons détectés")
-
-    	if results['missing_values']['total'] > 0:
-        recommendations.append(f"Traiter les {results['missing_values']['total']} valeurs manquantes")
-
-    	if 'emails' in results:
-        for col, data in results['emails'].items():
-            if data['invalid'] > 0:
-                recommendations.append(f"Corriger les {data['invalid']} emails invalides dans '{col}'")
-
-    	if 'phones' in results:
-        for col, data in results['phones'].items():
-            if data['invalid'] > 0:
-                recommendations.append(f"Corriger les {data['invalid']} téléphones invalides dans '{col}'")
-
-    	if not recommendations:
-        recommendations.append("Vos données sont de bonne qualité ! Continuez ainsi.")
-
-    return recommendations
-
-    
-    @staticmethod
-    def validate_email(email: Any) -> bool:
-        """
-        Valide les adresses email
-        
-        Returns:
-            bool: True si valide, False sinon
-        """
-        if pd.isna(email):
-            return False
-        
-        email_str = str(email).strip().lower()
-        
-        if not email_str or email_str == 'nan':
-            return False
-        
-        # Regex email standard
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return bool(re.match(pattern, email_str))
-    
-    @staticmethod
-    def validate_bank_account_bceao(account: Any) -> bool:
-        """
-        Valide les comptes bancaires BCEAO (format IBAN CI)
-        Format: CI + 2 chiffres + 1 lettre + 23 chiffres
-        Exemple: CI93A12345678901234567890
-        
-        Returns:
-            bool: True si valide, False sinon
-        """
-        if pd.isna(account):
-            return False
-        
-        account_str = str(account).strip().upper().replace(' ', '')
-        
-        if not account_str or account_str == 'NAN':
-            return False
-        
-        pattern = r'^CI\d{2}[A-Z]\d{23}$'
-        return bool(re.match(pattern, account_str))
-    
-    @staticmethod
-    def validate_currency_fcfa(value: Any) -> bool:
-        """
-        Vérifie si la devise est FCFA/XOF
-        
-        Returns:
-            bool: True si FCFA/XOF, False sinon
-        """
-        if pd.isna(value):
-            return False
-        
-        value_str = str(value).strip().upper()
-        
-        if not value_str or value_str == 'NAN':
-            return False
-        
-        valid_currencies = ['FCFA', 'XOF', 'F CFA', 'CFA']
-        return value_str in valid_currencies
-
-
-def detect_column_type(column_name: str) -> str:
-    """
-    Détecte le type de colonne basé sur son nom
-    
-    Args:
-        column_name: Nom de la colonne
-        
-    Returns:
-        str: Type détecté (phone, email, name, etc.)
-    """
-    name = column_name.lower()
-    
-    # Téléphones
-    phone_keywords = ['tel', 'phone', 'mobile', 'numero', 'contact', 'gsm']
-    if any(keyword in name for keyword in phone_keywords):
-        return 'phone'
-    
-    # Emails
-    if 'email' in name or 'mail' in name or 'courriel' in name:
-        return 'email'
-    
-    # Noms
-    name_keywords = ['nom', 'name', 'prenom', 'firstname', 'lastname']
-    if any(keyword in name for keyword in name_keywords):
-        return 'name'
-    
-    # Comptes bancaires
-    account_keywords = ['compte', 'account', 'iban', 'rib']
-    if any(keyword in name for keyword in account_keywords):
-        return 'bank_account'
-    
-    # Devise
-    if 'devise' in name or 'currency' in name or 'monnaie' in name:
-        return 'currency'
-    
-    return 'unknown'
-
-
-def validate_column_data(df: pd.DataFrame, column: str, column_type: str) -> Dict[str, Any]:
-    """
-    Valide les données d'une colonne selon son type
-    
-    Args:
-        df: DataFrame
-        column: Nom de la colonne
-        column_type: Type de la colonne
-        
-    Returns:
-        dict: Résultats de validation
-    """
-    if column not in df.columns:
-        return {
-            'valid_count': 0,
-            'invalid_count': 0,
-            'validity_rate': 0,
-            'invalid_samples': []
-        }
-    
-    series = df[column].dropna()
-    
-    if len(series) == 0:
-        return {
-            'valid_count': 0,
-            'invalid_count': 0,
-            'validity_rate': 100,
-            'invalid_samples': []
-        }
-    
-    # Sélection du validateur approprié
-    if column_type == 'phone':
-        validator = CIValidators.validate_phone_ci
-    elif column_type == 'email':
-        validator = CIValidators.validate_email
-    elif column_type == 'bank_account':
-        validator = CIValidators.validate_bank_account_bceao
-    elif column_type == 'currency':
-        validator = CIValidators.validate_currency_fcfa
-    else:
-        # Pas de validation spécifique
-        return {
-            'valid_count': len(series),
-            'invalid_count': 0,
-            'validity_rate': 100,
-            'invalid_samples': []
-        }
-    
-    # Validation
-    validation_results = series.apply(validator)
-    valid_count = validation_results.sum()
-    invalid_count = len(series) - valid_count
-    
-    # Échantillon des invalides (max 5)
-    invalid_indices = series[~validation_results].index[:5]
-    invalid_samples = series[invalid_indices].tolist()
-    
-    validity_rate = round((valid_count / len(series)) * 100, 1) if len(series) > 0 else 0
-    
-    return {
-        'valid_count': int(valid_count),
-        'invalid_count': int(invalid_count),
-        'validity_rate': validity_rate,
-        'invalid_samples': invalid_samples
-    }
 
 
 def detect_duplicates(df: pd.DataFrame) -> Dict[str, Any]:
@@ -274,16 +22,32 @@ def detect_duplicates(df: pd.DataFrame) -> Dict[str, Any]:
     """
     duplicates = df[df.duplicated(keep=False)]
     
+    # Identifier les colonnes clés potentielles (ID, code, etc.)
+    key_columns = [col for col in df.columns 
+                   if any(kw in col.lower() for kw in ['id', 'code', 'key', 'ref'])]
+    
+    # Doublons sur clés spécifiques
+    duplicates_by_key = {}
+    for col in key_columns:
+        dup_on_col = df[df.duplicated(subset=[col], keep=False)]
+        if len(dup_on_col) > 0:
+            duplicates_by_key[col] = {
+                'count': len(dup_on_col),
+                'sample': dup_on_col.head(5)
+            }
+    
     return {
         "count": len(duplicates),
-        "rows": duplicates.index.tolist(),
-        "data": duplicates
+        "percentage": round((len(duplicates) / len(df)) * 100, 2) if len(df) > 0 else 0,
+        "rows": duplicates.index.tolist()[:100],  # Limiter à 100
+        "data": duplicates.head(100),  # Limiter à 100 lignes
+        "by_key": duplicates_by_key
     }
 
 
 def detect_missing_values(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    Détecte les valeurs manquantes
+    Détecte les valeurs manquantes avec analyse détaillée
     
     Args:
         df: DataFrame à analyser
@@ -295,67 +59,110 @@ def detect_missing_values(df: pd.DataFrame) -> Dict[str, Any]:
     total_cells = len(df) * len(df.columns)
     total_missing = missing.sum()
     
+    # Colonnes avec le plus de valeurs manquantes
+    missing_sorted = missing[missing > 0].sort_values(ascending=False)
+    
+    # Pourcentage par colonne
+    missing_percentage = {}
+    for col in missing_sorted.index:
+        pct = (missing[col] / len(df)) * 100
+        missing_percentage[col] = round(pct, 2)
+    
     return {
         "total": int(total_missing),
         "percentage": round((total_missing / total_cells) * 100, 2) if total_cells > 0 else 0,
-        "by_column": missing.to_dict()
+        "by_column": missing.to_dict(),
+        "by_column_percentage": missing_percentage,
+        "columns_most_missing": list(missing_sorted.head(10).index)
     }
 
 
-def validate_specific_columns(df: pd.DataFrame) -> Dict[str, Any]:
+def analyze_data_quality(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    Valide les colonnes spécifiques (téléphones, emails, etc.)
+    Analyse complète de la qualité des données (style Dataiku DSS)
     
     Args:
         df: DataFrame à analyser
         
     Returns:
-        dict: Résultats de validation par colonne
+        dict: Métriques de qualité
     """
-    results = {}
+    quality_metrics = {}
     
-    for column in df.columns:
-        column_type = detect_column_type(column)
+    for col in df.columns:
+        col_data = df[col]
+        non_null = col_data.dropna()
         
-        if column_type != 'unknown':
-            validation = validate_column_data(df, column, column_type)
-            
-            # N'inclure que si des invalides détectés
-            if validation['invalid_count'] > 0:
-                results[column] = {
-                    'type': column_type,
-                    'validation': validation
-                }
+        metrics = {
+            'total_count': len(col_data),
+            'non_null_count': len(non_null),
+            'null_count': int(col_data.isnull().sum()),
+            'null_percentage': round((col_data.isnull().sum() / len(col_data)) * 100, 2) if len(col_data) > 0 else 0,
+            'unique_count': int(col_data.nunique()),
+            'unique_percentage': round((col_data.nunique() / len(col_data)) * 100, 2) if len(col_data) > 0 else 0,
+        }
+        
+        # Pour colonnes numériques
+        if pd.api.types.is_numeric_dtype(col_data):
+            metrics.update({
+                'min': float(non_null.min()) if len(non_null) > 0 else None,
+                'max': float(non_null.max()) if len(non_null) > 0 else None,
+                'mean': float(non_null.mean()) if len(non_null) > 0 else None,
+                'median': float(non_null.median()) if len(non_null) > 0 else None,
+                'std': float(non_null.std()) if len(non_null) > 0 else None,
+            })
+        
+        # Pour colonnes texte
+        elif pd.api.types.is_string_dtype(col_data) or col_data.dtype == 'object':
+            if len(non_null) > 0:
+                lengths = non_null.astype(str).str.len()
+                metrics.update({
+                    'min_length': int(lengths.min()),
+                    'max_length': int(lengths.max()),
+                    'avg_length': round(float(lengths.mean()), 2),
+                    'most_common': non_null.value_counts().head(5).to_dict()
+                })
+        
+        quality_metrics[col] = metrics
     
-    return results
+    return quality_metrics
 
 
-def validate_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
+def validate_dataframe(df: pd.DataFrame, filename: str = None) -> Dict[str, Any]:
     """
-    Analyse complète de qualité d'un DataFrame
+    Analyse complète de qualité d'un DataFrame (style Dataiku DSS)
     
     Args:
         df: DataFrame à analyser
+        filename: Nom du fichier original (pour nommage sorties)
         
     Returns:
         dict: Résultats complets de l'analyse
     """
-    # Analyse sémantique des colonnes
+    # Analyse sémantique des colonnes (type attendu vs type réel)
     semantic = analyze_columns(df)
     
-    # Validation spécifique (téléphones, emails, etc.)
-    specific_validation = validate_specific_columns(df)
+    # Doublons
+    duplicates = detect_duplicates(df)
+    
+    # Valeurs manquantes
+    missing_values = detect_missing_values(df)
+    
+    # Métriques de qualité par colonne
+    quality_metrics = analyze_data_quality(df)
     
     results = {
+        "filename": filename or "unknown",
         "total_rows": len(df),
         "total_columns": len(df.columns),
-        "duplicates": detect_duplicates(df),
-        "missing_values": detect_missing_values(df),
+        "column_names": df.columns.tolist(),
+        "duplicates": duplicates,
+        "missing_values": missing_values,
         "semantic_validation": semantic,
-        "specific_validation": specific_validation
+        "quality_metrics": quality_metrics
     }
     
-    # Calcul du score de qualité
+    # Calcul du score de qualité global
     results["quality_score"] = calculate_quality_score(results)
     
     return results
@@ -363,7 +170,8 @@ def validate_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
 
 def calculate_quality_score(results: Dict[str, Any]) -> float:
     """
-    Calcule un score de qualité global
+    Calcule un score de qualité global (0-100)
+    Basé sur plusieurs dimensions comme Dataiku DSS
     
     Args:
         results: Résultats de l'analyse
@@ -373,90 +181,190 @@ def calculate_quality_score(results: Dict[str, Any]) -> float:
     """
     score = 100.0
     
-    # Pénalité pour les doublons (max -20 points)
-    duplicate_penalty = min(20, results["duplicates"]["count"] * 0.5)
+    # 1. Pénalité pour doublons (max -15 points)
+    duplicate_pct = results["duplicates"]["percentage"]
+    duplicate_penalty = min(15, duplicate_pct * 1.5)
     score -= duplicate_penalty
     
-    # Pénalité pour les valeurs manquantes (max -30 points)
-    missing_penalty = min(30, results["missing_values"]["percentage"])
+    # 2. Pénalité pour valeurs manquantes (max -25 points)
+    missing_pct = results["missing_values"]["percentage"]
+    missing_penalty = min(25, missing_pct * 1.2)
     score -= missing_penalty
     
-    # Pénalité pour la cohérence sémantique (max -30 points)
+    # 3. Pénalité pour incohérence sémantique (max -35 points)
     semantic_penalty = 0
-    for col, data in results["semantic_validation"].items():
-        if data["conformity_rate"] < 70:
-            semantic_penalty += (70 - data["conformity_rate"]) * 0.2
+    total_cols = len(results["semantic_validation"])
     
-    score -= min(30, semantic_penalty)
+    if total_cols > 0:
+        for col, data in results["semantic_validation"].items():
+            conformity = data["conformity_rate"]
+            
+            # Pénalité progressive selon conformité
+            if conformity < 50:
+                semantic_penalty += 3  # Grave
+            elif conformity < 70:
+                semantic_penalty += 2  # Moyen
+            elif conformity < 90:
+                semantic_penalty += 1  # Léger
+        
+        semantic_penalty = min(35, semantic_penalty)
     
-    # Pénalité pour validations spécifiques (max -20 points)
-    specific_penalty = 0
-    for col, data in results.get("specific_validation", {}).items():
-        invalid_rate = 100 - data['validation']['validity_rate']
-        specific_penalty += invalid_rate * 0.1
+    score -= semantic_penalty
     
-    score -= min(20, specific_penalty)
+    # 4. Pénalité pour faible cardinalité sur colonnes clés (max -10 points)
+    cardinality_penalty = 0
+    for col, metrics in results["quality_metrics"].items():
+        # Si colonne contient "id" ou "code" dans le nom
+        if any(kw in col.lower() for kw in ['id', 'code', 'key']):
+            # Et que la cardinalité est trop faible
+            if metrics['unique_percentage'] < 80:
+                cardinality_penalty += 2
     
-    return max(0.0, round(score, 1))
+    score -= min(10, cardinality_penalty)
+    
+    # 5. Bonus pour bonne qualité globale (+10 points max)
+    if duplicate_pct == 0 and missing_pct < 5:
+        score += min(10, 10 - missing_pct)
+    
+    return max(0.0, min(100.0, round(score, 1)))
 
 
 def generate_recommendations(results: Dict[str, Any]) -> List[str]:
     """
-    Génère des recommandations basées sur l'analyse
+    Génère des recommandations actionnables basées sur l'analyse
+    Style Dataiku DSS : recommandations priorisées et claires
     
     Args:
         results: Résultats de l'analyse
         
     Returns:
-        list: Liste de recommandations
+        list: Liste de recommandations priorisées
     """
     recommendations = []
     
-    # Valeurs manquantes
-    if results["missing_values"]["total"] > 0:
-        recommendations.append(
-            f"Traiter les {results['missing_values']['total']} valeurs manquantes "
-            f"({results['missing_values']['percentage']}% des données)"
-        )
+    # --- PRIORITÉ HAUTE ---
     
-    # Doublons
-    if results["duplicates"]["count"] > 0:
-        recommendations.append(
-            f"Supprimer ou fusionner les {results['duplicates']['count']} lignes dupliquées"
-        )
+    # 1. Doublons critiques
+    if results["duplicates"]["percentage"] > 10:
+        recommendations.append({
+            "priority": "HAUTE",
+            "category": "Doublons",
+            "message": f"⚠️ {results['duplicates']['count']} doublons détectés ({results['duplicates']['percentage']}% des données)",
+            "action": "Supprimer ou fusionner les lignes dupliquées"
+        })
     
-    # Validations spécifiques
-    for col, data in results.get("specific_validation", {}).items():
-        invalid_count = data['validation']['invalid_count']
-        if invalid_count > 0:
-            col_type = data['type']
-            type_label = {
-                'phone': 'téléphones',
-                'email': 'emails',
-                'bank_account': 'comptes bancaires',
-                'currency': 'devises'
-            }.get(col_type, 'valeurs')
-            
-            recommendations.append(
-                f"Corriger les {invalid_count} {type_label} invalides dans '{col}'"
-            )
-            
-            # Ajouter exemples si disponibles
-            if data['validation']['invalid_samples']:
-                samples = data['validation']['invalid_samples'][:3]
-                recommendations.append(
-                    f"  Exemples invalides : {', '.join(str(s) for s in samples)}"
-                )
+    # 2. Valeurs manquantes critiques
+    for col, pct in results["missing_values"]["by_column_percentage"].items():
+        if pct > 50:
+            recommendations.append({
+                "priority": "HAUTE",
+                "category": "Données manquantes",
+                "message": f"⚠️ Colonne '{col}' : {pct}% de valeurs manquantes",
+                "action": f"Supprimer la colonne ou imputer les valeurs manquantes"
+            })
     
-    # Cohérence sémantique
-    low_conformity = [
-        col for col, data in results["semantic_validation"].items()
-        if data["conformity_rate"] < 70
-    ]
+    # 3. Incohérences sémantiques graves
+    for col, data in results["semantic_validation"].items():
+        if data["conformity_rate"] < 50:
+            recommendations.append({
+                "priority": "HAUTE",
+                "category": "Cohérence sémantique",
+                "message": f"⚠️ Colonne '{col}' : Type '{data['actual_type']}' ne correspond pas au type attendu '{data['expected_type']}'",
+                "action": f"Vérifier le contenu de la colonne et corriger les {data['invalid_count']} valeurs incohérentes"
+            })
     
-    if low_conformity:
-        recommendations.append(
-            f"Vérifier la cohérence des colonnes : {', '.join(low_conformity[:5])}"
-        )
+    # --- PRIORITÉ MOYENNE ---
     
-    return recommendations
+    # 4. Valeurs manquantes modérées
+    for col, pct in results["missing_values"]["by_column_percentage"].items():
+        if 20 < pct <= 50:
+            recommendations.append({
+                "priority": "MOYENNE",
+                "category": "Données manquantes",
+                "message": f"⚡ Colonne '{col}' : {pct}% de valeurs manquantes",
+                "action": "Analyser la raison et imputer si nécessaire"
+            })
+    
+    # 5. Incohérences sémantiques modérées
+    for col, data in results["semantic_validation"].items():
+        if 50 <= data["conformity_rate"] < 80:
+            recommendations.append({
+                "priority": "MOYENNE",
+                "category": "Cohérence sémantique",
+                "message": f"⚡ Colonne '{col}' : Conformité {data['conformity_rate']}%",
+                "action": f"Vérifier et nettoyer les {data['invalid_count']} valeurs suspectes"
+            })
+    
+    # 6. Faible cardinalité sur colonnes clés
+    for col, metrics in results["quality_metrics"].items():
+        if any(kw in col.lower() for kw in ['id', 'code', 'key']):
+            if metrics['unique_percentage'] < 80:
+                recommendations.append({
+                    "priority": "MOYENNE",
+                    "category": "Cardinalité",
+                    "message": f"⚡ Colonne '{col}' : Seulement {metrics['unique_percentage']}% de valeurs uniques",
+                    "action": "Vérifier si cette colonne est vraiment une clé unique"
+                })
+    
+    # --- PRIORITÉ BASSE ---
+    
+    # 7. Optimisations possibles
+    for col, metrics in results["quality_metrics"].items():
+        if metrics['unique_percentage'] < 5:
+            recommendations.append({
+                "priority": "BASSE",
+                "category": "Optimisation",
+                "message": f"ℹ️ Colonne '{col}' : Très faible diversité ({metrics['unique_count']} valeurs uniques)",
+                "action": "Envisager de convertir en type catégoriel pour optimiser la mémoire"
+            })
+    
+    # Limiter à 20 recommandations et trier par priorité
+    priority_order = {"HAUTE": 0, "MOYENNE": 1, "BASSE": 2}
+    recommendations.sort(key=lambda x: priority_order[x["priority"]])
+    
+    return recommendations[:20]
+
+
+def prepare_cleaned_dataframe(df: pd.DataFrame, results: Dict[str, Any], 
+                               remove_duplicates: bool = True,
+                               drop_high_missing_cols: bool = True,
+                               missing_threshold: float = 70.0) -> pd.DataFrame:
+    """
+    Prépare un DataFrame nettoyé basé sur l'analyse
+    
+    Args:
+        df: DataFrame original
+        results: Résultats de l'analyse
+        remove_duplicates: Supprimer les doublons
+        drop_high_missing_cols: Supprimer colonnes avec trop de manquants
+        missing_threshold: Seuil (%) pour supprimer une colonne
+        
+    Returns:
+        DataFrame nettoyé
+    """
+    df_cleaned = df.copy()
+    
+    changes_log = []
+    
+    # 1. Supprimer les doublons
+    if remove_duplicates and results["duplicates"]["count"] > 0:
+        initial_rows = len(df_cleaned)
+        df_cleaned = df_cleaned.drop_duplicates()
+        removed = initial_rows - len(df_cleaned)
+        changes_log.append(f"✓ {removed} doublons supprimés")
+    
+    # 2. Supprimer colonnes avec trop de valeurs manquantes
+    if drop_high_missing_cols:
+        cols_to_drop = []
+        for col, pct in results["missing_values"]["by_column_percentage"].items():
+            if pct >= missing_threshold:
+                cols_to_drop.append(col)
+        
+        if cols_to_drop:
+            df_cleaned = df_cleaned.drop(columns=cols_to_drop)
+            changes_log.append(f"✓ {len(cols_to_drop)} colonnes supprimées (>{missing_threshold}% manquant)")
+    
+    # Log des changements
+    df_cleaned.attrs['cleaning_log'] = changes_log
+    
+    return df_cleaned
