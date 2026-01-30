@@ -108,7 +108,7 @@ with st.sidebar:
     
     st.caption("🚀 Version 2.0")
     st.caption("Développé par HABIB KOFFI")
-    st.caption("© 2026 - Tous droits réservés")
+    st.caption("©️ 2026 - Tous droits réservés")
 
 
 # ======================
@@ -343,38 +343,68 @@ if uploaded_file:
             st.dataframe(df.head(50), use_container_width=True, height=400)
             
             st.subheader("Statistiques descriptives")
-            st.dataframe(df.describe(), use_container_width=True)
+            try:
+                st.dataframe(df.describe(), use_container_width=True)
+            except Exception as e:
+                st.warning(f"Impossible de générer les statistiques : {e}")
         
-        # --- TAB 2 : COHÉRENCE ---
+        # --- TAB 2 : COHÉRENCE (CORRIGÉ) ---
         with tab2:
             st.subheader("Validation sémantique des colonnes")
             
-            semantic_df = pd.DataFrame.from_dict(
-                results["semantic_validation"], 
-                orient="index"
-            )
-            
-            # Formater pour affichage
-            semantic_df = semantic_df.reset_index()
-            semantic_df.columns = ['Colonne', 'Type Attendu', 'Type Réel', 'Conformité (%)', 'Invalides', 'Nulls', 'Uniques', 'Échantillon']
-            
-            # Colorier selon conformité
-            def color_conformity(val):
-                if isinstance(val, (int, float)):
-                    if val >= 90:
-                        return 'background-color: #D4EDDA'
-                    elif val >= 70:
-                        return 'background-color: #FFF3CD'
-                    else:
-                        return 'background-color: #F8D7DA'
-                return ''
-            
-            styled_df = semantic_df.style.applymap(
-                color_conformity, 
-                subset=['Conformité (%)']
-            )
-            
-            st.dataframe(styled_df, use_container_width=True, height=500)
+            if 'semantic_validation' in results and results['semantic_validation']:
+                try:
+                    # Créer un DataFrame propre sans types mixtes
+                    semantic_data = []
+                    
+                    for col_name, col_data in results["semantic_validation"].items():
+                        semantic_data.append({
+                            'Colonne': str(col_name),
+                            'Type Attendu': str(col_data.get('expected_type', 'N/A')),
+                            'Type Réel': str(col_data.get('actual_type', 'N/A')),
+                            'Conformité (%)': float(col_data.get('conformity_rate', 0)),
+                            'Invalides': int(col_data.get('invalid_count', 0)),
+                            'Nulls': int(col_data.get('null_count', 0)) if 'null_count' in col_data else 0,
+                            'Uniques': int(col_data.get('unique_count', 0)) if 'unique_count' in col_data else 0
+                        })
+                    
+                    semantic_df = pd.DataFrame(semantic_data)
+                    
+                    # Fonction de coloration
+                    def color_conformity(val):
+                        try:
+                            if isinstance(val, (int, float)):
+                                if val >= 90:
+                                    return 'background-color: #D4EDDA'
+                                elif val >= 70:
+                                    return 'background-color: #FFF3CD'
+                                else:
+                                    return 'background-color: #F8D7DA'
+                        except:
+                            pass
+                        return ''
+                    
+                    # Afficher le DataFrame avec style
+                    st.dataframe(
+                        semantic_df.style.applymap(
+                            color_conformity, 
+                            subset=['Conformité (%)']
+                        ),
+                        use_container_width=True,
+                        height=500
+                    )
+                    
+                except Exception as e:
+                    st.warning(f"⚠️ Impossible d'afficher le tableau de cohérence : {str(e)}")
+                    
+                    # Affichage alternatif simple
+                    st.write("**Résumé de la validation sémantique :**")
+                    for col_name, col_data in results["semantic_validation"].items():
+                        conformity = col_data.get('conformity_rate', 0)
+                        emoji = "✅" if conformity >= 90 else "⚠️" if conformity >= 70 else "❌"
+                        st.write(f"{emoji} **{col_name}** : {conformity}% de conformité")
+            else:
+                st.info("ℹ️ Aucune validation sémantique disponible")
         
         # --- TAB 3 : GRAPHIQUES ---
         with tab3:
