@@ -1,0 +1,167 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-01-31",
+  "categories": {
+    "completeness": {
+      "name": "Complétude",
+      "description": "Détection des valeurs manquantes",
+      "weight": 0.25
+    },
+    "validity": {
+      "name": "Validité",
+      "description": "Cohérence des types et formats",
+      "weight": 0.35
+    },
+    "uniqueness": {
+      "name": "Unicité",
+      "description": "Détection des doublons",
+      "weight": 0.20
+    },
+    "consistency": {
+      "name": "Cohérence",
+      "description": "Cohérence sémantique",
+      "weight": 0.20
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "R001_MISSING_VALUES",
+      "name": "Valeurs manquantes",
+      "category": "completeness",
+      "description": "Détecte les valeurs NULL ou vides",
+      "scope": "column",
+      "severity": "high",
+      "weight": 1.0,
+      "threshold": {
+        "warning": 5,
+        "critical": 20
+      },
+      "action": {
+        "type": "imputation",
+        "strategy": "auto"
+      }
+    },
+    {
+      "rule_id": "R002_DUPLICATE_ROWS",
+      "name": "Lignes dupliquées",
+      "category": "uniqueness",
+      "description": "Détecte les lignes identiques",
+      "scope": "dataset",
+      "severity": "high",
+      "weight": 1.0,
+      "threshold": {
+        "warning": 1,
+        "critical": 5
+      },
+      "action": {
+        "type": "deduplication",
+        "strategy": "keep_first"
+      }
+    },
+    {
+      "rule_id": "R003_TYPE_MISMATCH",
+      "name": "Incohérence de type",
+      "category": "validity",
+      "description": "Type attendu ≠ type détecté",
+      "scope": "column",
+      "severity": "medium",
+      "weight": 0.8,
+      "threshold": {
+        "warning": 70,
+        "critical": 50
+      },
+      "action": {
+        "type": "conversion",
+        "strategy": "auto"
+      }
+    },
+    {
+      "rule_id": "R004_EMAIL_FORMAT",
+      "name": "Format email invalide",
+      "category": "validity",
+      "description": "Validation format email standard",
+      "scope": "column",
+      "applies_to": ["email", "mail", "courriel"],
+      "severity": "medium",
+      "weight": 0.7,
+      "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+      "threshold": {
+        "warning": 90,
+        "critical": 70
+      },
+      "action": {
+        "type": "cleaning",
+        "strategy": "standardize"
+      }
+    },
+    {
+      "rule_id": "R005_PHONE_FORMAT",
+      "name": "Format téléphone invalide",
+      "category": "validity",
+      "description": "Validation format téléphone",
+      "scope": "column",
+      "applies_to": ["phone", "tel", "telephone", "mobile", "portable"],
+      "severity": "medium",
+      "weight": 0.7,
+      "pattern": "^[\\+\\d\\s\\-\\(\\)]{8,20}$",
+      "threshold": {
+        "warning": 90,
+        "critical": 70
+      },
+      "action": {
+        "type": "cleaning",
+        "strategy": "standardize"
+      }
+    },
+    {
+      "rule_id": "R006_LOW_CARDINALITY",
+      "name": "Faible cardinalité sur clé",
+      "category": "consistency",
+      "description": "Colonne identifiant avec peu de valeurs uniques",
+      "scope": "column",
+      "applies_to": ["id", "code", "ref"],
+      "severity": "low",
+      "weight": 0.5,
+      "threshold": {
+        "warning": 80,
+        "critical": 60
+      },
+      "action": {
+        "type": "alert",
+        "strategy": "notify"
+      }
+    },
+    {
+      "rule_id": "R007_HIGH_NULL_RATE",
+      "name": "Colonne majoritairement vide",
+      "category": "completeness",
+      "description": "Plus de 80% de valeurs manquantes",
+      "scope": "column",
+      "severity": "high",
+      "weight": 1.0,
+      "threshold": {
+        "critical": 80
+      },
+      "action": {
+        "type": "removal",
+        "strategy": "drop_column"
+      }
+    },
+    {
+      "rule_id": "R008_CONSTANT_COLUMN",
+      "name": "Colonne constante",
+      "category": "consistency",
+      "description": "Colonne avec une seule valeur unique",
+      "scope": "column",
+      "severity": "low",
+      "weight": 0.3,
+      "threshold": {
+        "critical": 1
+      },
+      "action": {
+        "type": "removal",
+        "strategy": "drop_column"
+      }
+    }
+  ]
+}
