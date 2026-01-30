@@ -1,13 +1,18 @@
 # app.py - DataTchek V2 Pro Edition
 """
 DataTchek - Plateforme professionnelle d'analyse de qualité des données
-Interface moderne et gamifiée
+Version finale avec traductions, visualisations avancées et PDF Executive
 """
 
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 import io
+import sys
+from pathlib import Path
+
+# Ajouter le dossier i18n au path
+sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.validators import validate_dataframe, generate_recommendations
 from utils.visualizations import (
@@ -18,6 +23,38 @@ from utils.visualizations import (
     create_column_quality_bar,
 )
 from utils.pdf_generator import create_pdf_report
+
+# Imports des nouveaux modules
+try:
+    from utils.advanced_visualizations import (
+        create_distribution_analysis,
+        create_correlation_heatmap,
+        detect_outliers_visualization,
+        create_data_freshness_timeline,
+        create_quality_score_breakdown,
+        create_column_quality_heatmap,
+        create_value_uniqueness_analysis,
+        create_pattern_detection,
+        create_missing_data_patterns
+    )
+    ADVANCED_VIZ_AVAILABLE = True
+except ImportError:
+    ADVANCED_VIZ_AVAILABLE = False
+
+try:
+    from utils.executive_pdf_generator import create_executive_pdf
+    EXECUTIVE_PDF_AVAILABLE = True
+except ImportError:
+    EXECUTIVE_PDF_AVAILABLE = False
+
+try:
+    from i18n.translations import get_text, interpret_percentage, format_missing_value
+    I18N_AVAILABLE = True
+except ImportError:
+    I18N_AVAILABLE = False
+    # Fallback si traductions pas disponibles
+    def get_text(key, lang='fr', **kwargs):
+        return key
 
 
 # ======================
@@ -30,16 +67,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Initialiser la langue dans session_state
+if 'lang' not in st.session_state:
+    st.session_state.lang = 'fr'
+
 
 # ======================
 # CSS PROFESSIONNEL & GAMIFIÉ
 # ======================
 st.markdown("""
 <style>
-/* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* Variables globales */
 :root {
     --primary-color: #2563EB;
     --success-color: #10B981;
@@ -50,12 +89,10 @@ st.markdown("""
     --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-/* Reset & Base */
 * {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Sidebar Styling */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #1E293B 0%, #0F172A 100%);
     padding: 2rem 1rem;
@@ -65,7 +102,7 @@ st.markdown("""
     color: white !important;
 }
 
-[data-testid="stSidebar"] .sidebar-content {
+.sidebar-content {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 1.5rem;
@@ -73,7 +110,6 @@ st.markdown("""
     backdrop-filter: blur(10px);
 }
 
-/* Cards professionnelles */
 .pro-card {
     background: white;
     border-radius: 16px;
@@ -89,7 +125,6 @@ st.markdown("""
     box-shadow: 0 12px 24px -4px rgba(0, 0, 0, 0.15);
 }
 
-/* Score principal */
 .hero-score {
     background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
     border-radius: 24px;
@@ -124,7 +159,6 @@ st.markdown("""
     text-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
-/* Badges de qualité */
 .quality-badge {
     display: inline-flex;
     align-items: center;
@@ -139,41 +173,15 @@ st.markdown("""
 }
 
 @keyframes fadeInScale {
-    from {
-        opacity: 0;
-        transform: scale(0.8);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
 }
 
-.badge-platinum {
-    background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
-    color: #4338CA;
-    box-shadow: 0 4px 12px rgba(67, 56, 202, 0.3);
-}
+.badge-platinum { background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%); color: #4338CA; box-shadow: 0 4px 12px rgba(67, 56, 202, 0.3); }
+.badge-gold { background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); color: #92400E; box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3); }
+.badge-silver { background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%); color: #374151; box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3); }
+.badge-bronze { background: linear-gradient(135deg, #FED7AA 0%, #FDBA74 100%); color: #9A3412; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3); }
 
-.badge-gold {
-    background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-    color: #92400E;
-    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
-}
-
-.badge-silver {
-    background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
-    color: #374151;
-    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
-}
-
-.badge-bronze {
-    background: linear-gradient(135deg, #FED7AA 0%, #FDBA74 100%);
-    color: #9A3412;
-    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
-}
-
-/* Métriques modernes */
 .metric-card {
     background: white;
     border-radius: 12px;
@@ -204,7 +212,6 @@ st.markdown("""
     margin-top: 0.5rem;
 }
 
-/* Barre de progression gamifiée */
 .progress-container {
     background: #E2E8F0;
     border-radius: 100px;
@@ -229,7 +236,6 @@ st.markdown("""
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
 }
 
-/* Recommandations stylées */
 .recommendation-item {
     background: white;
     border-radius: 12px;
@@ -260,7 +266,6 @@ st.markdown("""
     background: linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, white 100%);
 }
 
-/* Boutons stylés */
 .stButton > button {
     background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
     color: white;
@@ -278,7 +283,6 @@ st.markdown("""
     box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
 }
 
-/* Tabs stylés */
 .stTabs [data-baseweb="tab-list"] {
     gap: 1rem;
     background: white;
@@ -301,23 +305,15 @@ st.markdown("""
     border-color: transparent;
 }
 
-/* Animations */
 @keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .animated-card {
     animation: slideInUp 0.6s ease-out;
 }
 
-/* Upload zone */
 [data-testid="stFileUploader"] {
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
     border: 2px dashed #667EEA;
@@ -332,31 +328,31 @@ st.markdown("""
     transform: scale(1.02);
 }
 
-/* Icônes emoji plus grandes */
-.big-emoji {
-    font-size: 3rem;
-    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+.lang-selector {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
 }
 
-/* Confetti effect */
-@keyframes confetti {
-    0% { transform: translateY(0) rotate(0deg); }
-    100% { transform: translateY(100vh) rotate(360deg); }
+.lang-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
 }
 
-.confetti {
-    position: fixed;
-    width: 10px;
-    height: 10px;
-    background: #667EEA;
-    animation: confetti 3s linear infinite;
+.lang-btn.active {
+    background: white;
+    color: #1E293B !important;
 }
 
-/* Hide Streamlit branding */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -371,7 +367,7 @@ def get_quality_badge(score):
             'name': 'PLATINUM',
             'emoji': '💎',
             'class': 'badge-platinum',
-            'message': 'Qualité Exceptionnelle',
+            'message': get_text('quality_excellent', st.session_state.lang),
             'points': 1000
         }
     elif score >= 75:
@@ -379,7 +375,7 @@ def get_quality_badge(score):
             'name': 'GOLD',
             'emoji': '🏆',
             'class': 'badge-gold',
-            'message': 'Excellente Qualité',
+            'message': get_text('quality_good', st.session_state.lang),
             'points': 750
         }
     elif score >= 60:
@@ -387,7 +383,7 @@ def get_quality_badge(score):
             'name': 'SILVER',
             'emoji': '🥈',
             'class': 'badge-silver',
-            'message': 'Bonne Qualité',
+            'message': get_text('quality_average', st.session_state.lang),
             'points': 500
         }
     else:
@@ -395,20 +391,22 @@ def get_quality_badge(score):
             'name': 'BRONZE',
             'emoji': '🥉',
             'class': 'badge-bronze',
-            'message': 'Qualité À Améliorer',
+            'message': get_text('quality_poor', st.session_state.lang),
             'points': 250
         }
 
+
 def get_level(score):
     """Calcule le niveau de qualité"""
+    lang = st.session_state.lang
     if score >= 90:
-        return "Expert Data Quality", "🎓"
+        return get_text('level_expert', lang), "🎓"
     elif score >= 75:
-        return "Data Quality Master", "⭐"
+        return get_text('level_master', lang), "⭐"
     elif score >= 60:
-        return "Data Quality Advanced", "📊"
+        return get_text('level_advanced', lang), "📊"
     else:
-        return "Data Quality Débutant", "🌱"
+        return get_text('level_beginner', lang), "🌱"
 
 
 # ======================
@@ -426,9 +424,27 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
+    # Sélecteur de langue
+    st.markdown("<div class='lang-selector'>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🇫🇷 FR", use_container_width=True, key="lang_fr"):
+            st.session_state.lang = 'fr'
+            st.rerun()
+    
+    with col2:
+        if st.button("🇬🇧 EN", use_container_width=True, key="lang_en"):
+            st.session_state.lang = 'en'
+            st.rerun()
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
     st.markdown("---")
     
-    st.markdown("""
+    lang = st.session_state.lang
+    
+    features_text = """
     <div class='sidebar-content'>
         <h3 style='margin-top: 0;'>✨ Fonctionnalités</h3>
         <ul style='line-height: 2; padding-left: 1.5rem;'>
@@ -436,12 +452,27 @@ with st.sidebar:
             <li>Validation CI (+225)</li>
             <li>Scoring gamifié</li>
             <li>Rapports PDF Pro</li>
-            <li>Graphiques interactifs</li>
+            <li>Graphiques avancés</li>
+            <li>Multilingue FR/EN</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """ if lang == 'fr' else """
+    <div class='sidebar-content'>
+        <h3 style='margin-top: 0;'>✨ Features</h3>
+        <ul style='line-height: 2; padding-left: 1.5rem;'>
+            <li>Smart Detection</li>
+            <li>CI Validation (+225)</li>
+            <li>Gamified Scoring</li>
+            <li>Pro PDF Reports</li>
+            <li>Advanced Charts</li>
+            <li>Multilingual FR/EN</li>
+        </ul>
+    </div>
+    """
     
-    st.markdown("""
+    st.markdown(features_text, unsafe_allow_html=True)
+    
+    levels_text = """
     <div class='sidebar-content'>
         <h3 style='margin-top: 0;'>🎮 Niveaux de Qualité</h3>
         <div style='padding: 0.5rem 0;'>
@@ -451,7 +482,19 @@ with st.sidebar:
             🥉 0-59: Bronze
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """ if lang == 'fr' else """
+    <div class='sidebar-content'>
+        <h3 style='margin-top: 0;'>🎮 Quality Levels</h3>
+        <div style='padding: 0.5rem 0;'>
+            💎 90-100: Platinum<br>
+            🏆 75-89: Gold<br>
+            🥈 60-74: Silver<br>
+            🥉 0-59: Bronze
+        </div>
+    </div>
+    """
+    
+    st.markdown(levels_text, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -467,13 +510,18 @@ with st.sidebar:
 # ======================
 # EN-TÊTE PRINCIPAL
 # ======================
-st.markdown("""
+lang = st.session_state.lang
+
+title_text = "Analysez la Qualité de Vos Données" if lang == 'fr' else "Analyze Your Data Quality"
+subtitle_text = "Uploadez votre fichier et obtenez une analyse professionnelle en quelques secondes" if lang == 'fr' else "Upload your file and get a professional analysis in seconds"
+
+st.markdown(f"""
 <div style='text-align: center; padding: 2rem 0 3rem 0;'>
     <h1 style='font-size: 3rem; margin: 0; color: #1E293B;'>
-        Analysez la Qualité de Vos Données
+        {title_text}
     </h1>
     <p style='font-size: 1.25rem; color: #64748B; margin-top: 1rem;'>
-        Uploadez votre fichier et obtenez une analyse professionnelle en quelques secondes
+        {subtitle_text}
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -486,11 +534,14 @@ st.markdown("<div class='pro-card animated-card'>", unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns([1, 2, 1])
 
+upload_label = "📁 Glissez-déposez votre fichier ici" if lang == 'fr' else "📁 Drag and drop your file here"
+upload_help = "Formats: CSV, Excel (.xlsx, .xls) | Taille max: 200MB" if lang == 'fr' else "Formats: CSV, Excel (.xlsx, .xls) | Max size: 200MB"
+
 with col2:
     uploaded_file = st.file_uploader(
-        "📁 Glissez-déposez votre fichier ici",
+        upload_label,
         type=["csv", "xlsx", "xls"],
-        help="Formats: CSV, Excel (.xlsx, .xls) | Taille max: 200MB"
+        help=upload_help
     )
 
 st.markdown("</div>", unsafe_allow_html=True)
@@ -502,7 +553,9 @@ st.markdown("</div>", unsafe_allow_html=True)
 if uploaded_file:
     try:
         # Chargement
-        with st.spinner("🔄 Chargement du fichier..."):
+        loading_text = "🔄 Chargement du fichier..." if lang == 'fr' else "🔄 Loading file..."
+        
+        with st.spinner(loading_text):
             if uploaded_file.name.endswith(".csv"):
                 try:
                     df = pd.read_csv(uploaded_file, encoding="utf-8")
@@ -512,10 +565,13 @@ if uploaded_file:
             else:
                 df = pd.read_excel(uploaded_file)
         
-        st.success(f"✅ **{uploaded_file.name}** chargé : {len(df):,} lignes × {len(df.columns)} colonnes")
+        success_text = f"✅ **{uploaded_file.name}** {'chargé' if lang == 'fr' else 'loaded'}: {len(df):,} {'lignes' if lang == 'fr' else 'rows'} × {len(df.columns)} {'colonnes' if lang == 'fr' else 'columns'}"
+        st.success(success_text)
         
         # Analyse
-        with st.spinner("🧠 Analyse intelligente en cours..."):
+        analyzing_text = "🧠 Analyse intelligente en cours..." if lang == 'fr' else "🧠 Intelligent analysis in progress..."
+        
+        with st.spinner(analyzing_text):
             results = validate_dataframe(df)
         
         score = results["quality_score"]
@@ -530,6 +586,8 @@ if uploaded_file:
         col1, col2 = st.columns([2, 3])
         
         with col1:
+            points_text = "Points de Qualité" if lang == 'fr' else "Quality Points"
+            
             st.markdown(f"""
             <div class='hero-score'>
                 <div class='score-number'>{score}</div>
@@ -544,21 +602,24 @@ if uploaded_file:
                     {badge['message']}
                 </div>
                 <div style='margin-top: 1.5rem; font-size: 0.875rem; opacity: 0.7;'>
-                    +{badge['points']} Points de Qualité
+                    +{badge['points']} {points_text}
                 </div>
             </div>
             """, unsafe_allow_html=True)
         
         with col2:
+            level_title = "Niveau Atteint" if lang == 'fr' else "Level Achieved"
+            progress_text = "Progression vers Expert" if lang == 'fr' else "Progress to Expert"
+            
             st.markdown(f"""
             <div style='padding: 2rem;'>
-                <h2 style='color: #1E293B; margin-bottom: 1.5rem;'>Niveau Atteint</h2>
+                <h2 style='color: #1E293B; margin-bottom: 1.5rem;'>{level_title}</h2>
                 <div style='font-size: 2rem; margin-bottom: 1rem;'>{level_emoji}</div>
                 <div style='font-size: 1.5rem; font-weight: 700; color: #667EEA; margin-bottom: 2rem;'>
                     {level_name}
                 </div>
                 
-                <h3 style='color: #64748B; font-size: 1rem; margin-bottom: 1rem;'>Progression vers Expert</h3>
+                <h3 style='color: #64748B; font-size: 1rem; margin-bottom: 1rem;'>{progress_text}</h3>
                 <div class='progress-container'>
                     <div class='progress-bar' style='width: {score}%;'>
                         {score}%
@@ -568,11 +629,11 @@ if uploaded_file:
                 <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem;'>
                     <div class='metric-card'>
                         <div class='metric-value'>{results['total_rows']:,}</div>
-                        <div class='metric-label'>Lignes Analysées</div>
+                        <div class='metric-label'>{get_text('lines_analyzed', lang)}</div>
                     </div>
                     <div class='metric-card'>
                         <div class='metric-value'>{results['total_columns']}</div>
-                        <div class='metric-label'>Colonnes Détectées</div>
+                        <div class='metric-label'>{get_text('columns_detected', lang)}</div>
                     </div>
                 </div>
             </div>
@@ -583,18 +644,23 @@ if uploaded_file:
         # ======================
         # MÉTRIQUES
         # ======================
-        st.markdown("<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>📊 Métriques Détaillées</h2>", unsafe_allow_html=True)
+        metrics_title = "📊 Métriques Détaillées" if lang == 'fr' else "📊 Detailed Metrics"
+        st.markdown(f"<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>{metrics_title}</h2>", unsafe_allow_html=True)
         
         col1, col2, col3, col4 = st.columns(4)
         
+        # Interpréter les métriques en langage naturel
+        missing_pct = results['missing_values']['percentage']
+        missing_interpretation = interpret_percentage(missing_pct, lang)
+        
         metrics = [
-            ("🔄", "Doublons", results['duplicates']['count'], "inverse"),
-            ("❌", "Manquants", f"{results['missing_values']['percentage']}%", "inverse"),
-            ("✅", "Qualité Moy", f"{score}%", "normal"),
-            ("📈", "Conformité", f"{95}%", "normal")  # Exemple
+            ("🔄", get_text('duplicates', lang), results['duplicates']['count']),
+            ("❌", get_text('missing', lang), f"{missing_interpretation}"),
+            ("✅", get_text('quality_avg', lang), f"{score}%"),
+            ("📈", get_text('conformity', lang), f"95%")
         ]
         
-        for idx, (emoji, label, value, delta_color) in enumerate(metrics):
+        for idx, (emoji, label, value) in enumerate(metrics):
             with [col1, col2, col3, col4][idx]:
                 st.markdown(f"""
                 <div class='metric-card animated-card' style='animation-delay: {idx * 0.1}s;'>
@@ -607,49 +673,69 @@ if uploaded_file:
         # ======================
         # ACTIONS
         # ======================
-        st.markdown("<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>⚡ Actions Rapides</h2>", unsafe_allow_html=True)
+        actions_title = "⚡ Actions Rapides" if lang == 'fr' else "⚡ Quick Actions"
+        st.markdown(f"<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>{actions_title}</h2>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("📄 Générer Rapport PDF", use_container_width=True):
-                with st.spinner("Génération..."):
+            pdf_btn_text = get_text('generate_pdf', lang)
+            if st.button(f"📄 {pdf_btn_text}", use_container_width=True):
+                with st.spinner("Génération..." if lang == 'fr' else "Generating..."):
                     try:
-                        pdf = create_pdf_report(df, results)
+                        if EXECUTIVE_PDF_AVAILABLE:
+                            pdf = create_executive_pdf(df, results, uploaded_file.name, lang)
+                        else:
+                            pdf = create_pdf_report(df, results)
+                        
+                        download_text = "⬇️ Télécharger PDF" if lang == 'fr' else "⬇️ Download PDF"
                         st.download_button(
-                            "⬇️ Télécharger PDF",
+                            download_text,
                             pdf,
-                            file_name=f"rapport_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                            file_name=f"rapport_executive_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                             mime="application/pdf",
                             use_container_width=True
                         )
                     except Exception as e:
-                        st.error(f"Erreur: {e}")
+                        error_text = f"Erreur: {e}" if lang == 'fr' else f"Error: {e}"
+                        st.error(error_text)
         
         with col2:
-            st.button("🧹 Nettoyer Données", use_container_width=True)
+            clean_btn_text = get_text('clean_data', lang)
+            st.button(f"🧹 {clean_btn_text}", use_container_width=True)
         
         with col3:
-            st.button("📤 Exporter Analyse", use_container_width=True)
+            export_btn_text = get_text('export_analysis', lang)
+            st.button(f"📤 {export_btn_text}", use_container_width=True)
         
         # ======================
         # RECOMMANDATIONS
         # ======================
-        st.markdown("<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>💡 Recommandations Prioritaires</h2>", unsafe_allow_html=True)
+        reco_title = get_text('recommendations', lang)
+        st.markdown(f"<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>💡 {reco_title}</h2>", unsafe_allow_html=True)
         
         recommendations = generate_recommendations(results)
         
         if recommendations:
             for idx, rec in enumerate(recommendations[:5]):
                 priority_class = "recommendation-high" if idx < 2 else "recommendation-medium" if idx < 4 else "recommendation-low"
-                priority_badge = "🔴 HAUTE" if idx < 2 else "🟠 MOYENNE" if idx < 4 else "🔵 BASSE"
+                
+                if idx < 2:
+                    priority_badge = get_text('priority_high', lang)
+                    priority_emoji = "🔴"
+                elif idx < 4:
+                    priority_badge = get_text('priority_medium', lang)
+                    priority_emoji = "🟠"
+                else:
+                    priority_badge = get_text('priority_low', lang)
+                    priority_emoji = "🔵"
                 
                 st.markdown(f"""
                 <div class='recommendation-item {priority_class} animated-card' style='animation-delay: {idx * 0.1}s;'>
                     <div style='display: flex; justify-content: space-between; align-items: start;'>
                         <div style='flex: 1;'>
                             <div style='font-weight: 700; font-size: 0.875rem; color: #64748B; margin-bottom: 0.5rem;'>
-                                {priority_badge}
+                                {priority_emoji} {priority_badge}
                             </div>
                             <div style='font-weight: 600; color: #1E293B;'>
                                 {rec}
@@ -660,47 +746,180 @@ if uploaded_file:
                 """, unsafe_allow_html=True)
         
         # ======================
-        # TABS D'ANALYSE
+        # TABS D'ANALYSE AVANCÉE
         # ======================
-        st.markdown("<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>🔬 Analyse Approfondie</h2>", unsafe_allow_html=True)
+        analysis_title = "🔬 Analyse Approfondie" if lang == 'fr' else "🔬 In-Depth Analysis"
+        st.markdown(f"<h2 style='color: #1E293B; margin: 3rem 0 1.5rem 0;'>{analysis_title}</h2>", unsafe_allow_html=True)
         
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📋 Données",
-            "📊 Graphiques",
-            "🔄 Doublons",
-            "❌ Manquants"
-        ])
-        
-        with tab1:
-            st.dataframe(df.head(50), use_container_width=True, height=400)
-        
-        with tab2:
-            col1, col2 = st.columns(2)
-            with col1:
+        if ADVANCED_VIZ_AVAILABLE:
+            tabs = st.tabs([
+                get_text('tab_data', lang),
+                get_text('tab_graphs', lang),
+                get_text('tab_distribution', lang),
+                get_text('tab_correlations', lang),
+                get_text('tab_outliers', lang),
+                get_text('tab_duplicates', lang),
+                get_text('tab_missing', lang)
+            ])
+            
+            with tabs[0]:  # Données
+                st.dataframe(df.head(50), use_container_width=True, height=400)
+            
+            with tabs[1]:  # Graphiques de base
+                col1, col2 = st.columns(2)
+                with col1:
+                    try:
+                        st.plotly_chart(create_problems_bar_chart(results), use_container_width=True)
+                    except: pass
+                    try:
+                        st.plotly_chart(create_quality_score_breakdown(results), use_container_width=True)
+                    except: pass
+                with col2:
+                    try:
+                        st.plotly_chart(create_quality_distribution_pie(results), use_container_width=True)
+                    except: pass
+                    try:
+                        st.plotly_chart(create_column_quality_heatmap(df), use_container_width=True)
+                    except: pass
+            
+            with tabs[2]:  # Distribution
+                # Sélecteur de colonne
+                selected_col = st.selectbox(
+                    "Sélectionnez une colonne" if lang == 'fr' else "Select a column",
+                    df.columns.tolist()
+                )
+                
                 try:
-                    st.plotly_chart(create_problems_bar_chart(results), use_container_width=True)
-                except: pass
-            with col2:
+                    fig_dist = create_distribution_analysis(df, selected_col)
+                    if fig_dist:
+                        st.plotly_chart(fig_dist, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"Impossible d'afficher la distribution: {e}")
+                
                 try:
-                    st.plotly_chart(create_quality_distribution_pie(results), use_container_width=True)
+                    fig_pattern = create_pattern_detection(df, selected_col)
+                    if fig_pattern:
+                        st.plotly_chart(fig_pattern, use_container_width=True)
                 except: pass
+            
+            with tabs[3]:  # Corrélations
+                try:
+                    fig_corr = create_correlation_heatmap(df)
+                    if fig_corr:
+                        st.plotly_chart(fig_corr, use_container_width=True)
+                    else:
+                        no_numeric = "Pas assez de colonnes numériques pour calculer les corrélations" if lang == 'fr' else "Not enough numeric columns to calculate correlations"
+                        st.info(no_numeric)
+                except Exception as e:
+                    st.warning(f"Erreur: {e}")
+                
+                try:
+                    fig_unique = create_value_uniqueness_analysis(df)
+                    if fig_unique:
+                        st.plotly_chart(fig_unique, use_container_width=True)
+                except: pass
+            
+            with tabs[4]:  # Outliers
+                # Sélection colonne numérique
+                numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+                
+                if numeric_cols:
+                    selected_numeric = st.selectbox(
+                        "Sélectionnez une colonne numérique" if lang == 'fr' else "Select a numeric column",
+                        numeric_cols
+                    )
+                    
+                    try:
+                        fig_outliers = detect_outliers_visualization(df, selected_numeric)
+                        if fig_outliers:
+                            st.plotly_chart(fig_outliers, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Erreur: {e}")
+                else:
+                    no_numeric = "Aucune colonne numérique trouvée" if lang == 'fr' else "No numeric columns found"
+                    st.info(no_numeric)
+            
+            with tabs[5]:  # Doublons
+                duplicate_count = results["duplicates"]["count"]
+                
+                if duplicate_count > 0:
+                    dup_text = f"⚠️ {duplicate_count} {'doublons détectés' if lang == 'fr' else 'duplicates detected'}"
+                    st.warning(dup_text)
+                    st.dataframe(results["duplicates"]["data"], use_container_width=True, height=400)
+                else:
+                    no_dup = get_text('no_duplicates', lang)
+                    st.success(f"✅ {no_dup}")
+            
+            with tabs[6]:  # Données manquantes
+                missing_total = results["missing_values"]["total"]
+                
+                if missing_total > 0:
+                    missing_text = f"⚠️ {missing_total:,} {'valeurs manquantes' if lang == 'fr' else 'missing values'} ({results['missing_values']['percentage']}%)"
+                    st.warning(missing_text)
+                    
+                    try:
+                        fig_missing_pattern = create_missing_data_patterns(df)
+                        if fig_missing_pattern:
+                            st.plotly_chart(fig_missing_pattern, use_container_width=True)
+                    except: pass
+                    
+                    # Détail par colonne
+                    missing_by_col = pd.DataFrame.from_dict(
+                        results["missing_values"]["by_column"],
+                        orient='index',
+                        columns=['Valeurs Manquantes']
+                    )
+                    missing_by_col = missing_by_col[missing_by_col['Valeurs Manquantes'] > 0]
+                    missing_by_col = missing_by_col.sort_values('Valeurs Manquantes', ascending=False)
+                    missing_by_col['Pourcentage'] = (missing_by_col['Valeurs Manquantes'] / len(df) * 100).round(2)
+                    
+                    st.dataframe(missing_by_col, use_container_width=True)
+                else:
+                    no_missing = get_text('no_missing', lang)
+                    st.success(f"✅ {no_missing}")
         
-        with tab3:
-            if results["duplicates"]["count"] > 0:
-                st.warning(f"⚠️ {results['duplicates']['count']} doublons détectés")
-                st.dataframe(results["duplicates"]["data"], use_container_width=True)
-            else:
-                st.success("✅ Aucun doublon")
-        
-        with tab4:
-            if results["missing_values"]["total"] > 0:
-                st.warning(f"⚠️ {results['missing_values']['total']:,} valeurs manquantes")
-            else:
-                st.success("✅ Aucune donnée manquante")
+        else:
+            # Fallback tabs si visualisations avancées pas disponibles
+            tabs = st.tabs([
+                get_text('tab_data', lang),
+                get_text('tab_graphs', lang),
+                get_text('tab_duplicates', lang),
+                get_text('tab_missing', lang)
+            ])
+            
+            with tabs[0]:
+                st.dataframe(df.head(50), use_container_width=True, height=400)
+            
+            with tabs[1]:
+                col1, col2 = st.columns(2)
+                with col1:
+                    try:
+                        st.plotly_chart(create_problems_bar_chart(results), use_container_width=True)
+                    except: pass
+                with col2:
+                    try:
+                        st.plotly_chart(create_quality_distribution_pie(results), use_container_width=True)
+                    except: pass
+            
+            with tabs[2]:
+                if results["duplicates"]["count"] > 0:
+                    st.warning(f"⚠️ {results['duplicates']['count']} doublons")
+                    st.dataframe(results["duplicates"]["data"], use_container_width=True)
+                else:
+                    st.success("✅ Aucun doublon")
+            
+            with tabs[3]:
+                if results["missing_values"]["total"] > 0:
+                    st.warning(f"⚠️ {results['missing_values']['total']:,} manquants")
+                else:
+                    st.success("✅ Aucune donnée manquante")
     
     except Exception as e:
-        st.error(f"❌ Erreur: {str(e)}")
-        with st.expander("Détails"):
+        error_title = "❌ Erreur lors de l'analyse du fichier" if lang == 'fr' else "❌ Error analyzing file"
+        st.error(error_title)
+        st.code(str(e))
+        
+        with st.expander("🔍 Détails" if lang == 'fr' else "🔍 Details"):
             import traceback
             st.code(traceback.format_exc())
 
@@ -708,30 +927,41 @@ else:
     # ======================
     # LANDING PAGE
     # ======================
-    st.markdown("""
+    landing_title = "Prêt à Analyser Vos Données ?" if lang == 'fr' else "Ready to Analyze Your Data?"
+    landing_desc = "Uploadez votre fichier CSV ou Excel pour commencer une analyse professionnelle avec scoring gamifié et recommandations actionnables." if lang == 'fr' else "Upload your CSV or Excel file to start a professional analysis with gamified scoring and actionable recommendations."
+    
+    fast_title = "Rapide" if lang == 'fr' else "Fast"
+    fast_desc = "Résultats en moins de 10 secondes" if lang == 'fr' else "Results in less than 10 seconds"
+    
+    precise_title = "Précis" if lang == 'fr' else "Accurate"
+    precise_desc = "Analyse intelligente multi-niveaux" if lang == 'fr' else "Smart multi-level analysis"
+    
+    gamified_title = "Gamifié" if lang == 'fr' else "Gamified"
+    gamified_desc = "Badges et niveaux de qualité" if lang == 'fr' else "Quality badges and levels"
+    
+    st.markdown(f"""
     <div class='pro-card animated-card' style='text-align: center; padding: 4rem 2rem;'>
-        <div class='big-emoji'>🚀</div>
-        <h2 style='color: #1E293B; margin: 2rem 0 1rem 0;'>Prêt à Analyser Vos Données ?</h2>
+        <div class='big-emoji' style='font-size: 3rem;'>🚀</div>
+        <h2 style='color: #1E293B; margin: 2rem 0 1rem 0;'>{landing_title}</h2>
         <p style='color: #64748B; font-size: 1.125rem; max-width: 600px; margin: 0 auto 2rem auto;'>
-            Uploadez votre fichier CSV ou Excel pour commencer une analyse professionnelle
-            avec scoring gamifié et recommandations actionnables.
+            {landing_desc}
         </p>
         
         <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem;'>
             <div>
                 <div style='font-size: 2.5rem; margin-bottom: 1rem;'>⚡</div>
-                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>Rapide</h3>
-                <p style='color: #64748B;'>Résultats en moins de 10 secondes</p>
+                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{fast_title}</h3>
+                <p style='color: #64748B;'>{fast_desc}</p>
             </div>
             <div>
                 <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎯</div>
-                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>Précis</h3>
-                <p style='color: #64748B;'>Analyse intelligente multi-niveaux</p>
+                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{precise_title}</h3>
+                <p style='color: #64748B;'>{precise_desc}</p>
             </div>
             <div>
                 <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎮</div>
-                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>Gamifié</h3>
-                <p style='color: #64748B;'>Badges et niveaux de qualité</p>
+                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{gamified_title}</h3>
+                <p style='color: #64748B;'>{gamified_desc}</p>
             </div>
         </div>
     </div>
