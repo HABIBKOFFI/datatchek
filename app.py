@@ -941,13 +941,43 @@ else:
     
     st.markdown(f"""
     <div class='pro-card animated-card' style='text-align: center; padding: 4rem 2rem;'>
-        <div class='big-emoji' style='font-size: 3rem;'>🚀</div>
+        <div style='font-size: 3rem; margin-bottom: 2rem;'>🚀</div>
         <h2 style='color: #1E293B; margin: 2rem 0 1rem 0;'>{landing_title}</h2>
         <p style='color: #64748B; font-size: 1.125rem; max-width: 600px; margin: 0 auto 2rem auto;'>
             {landing_desc}
         </p>
-        
-        <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem;'>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Features cards
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+        <div class='pro-card' style='text-align: center; padding: 2rem;'>
+            <div style='font-size: 2.5rem; margin-bottom: 1rem;'>⚡</div>
+            <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{fast_title}</h3>
+            <p style='color: #64748B;'>{fast_desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class='pro-card' style='text-align: center; padding: 2rem;'>
+            <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎯</div>
+            <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{precise_title}</h3>
+            <p style='color: #64748B;'>{precise_desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class='pro-card' style='text-align: center; padding: 2rem;'>
+            <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎮</div>
+            <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{gamified_title}</h3>
+            <p style='color: #64748B;'>{gamified_desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
             <div>
                 <div style='font-size: 2.5rem; margin-bottom: 1rem;'>⚡</div>
                 <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{fast_title}</h3>
