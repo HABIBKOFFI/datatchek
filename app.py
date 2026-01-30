@@ -42,6 +42,7 @@ with st.sidebar:
     Datatchek analyse automatiquement la qualité de vos fichiers de données.
     
     **Fonctionnalités:**
+    - Détection intelligente des colonnes
     - Détection de doublons
     - Validation d'emails
     - Validation de téléphones
@@ -63,17 +64,49 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file:
     try:
-        # Lire le fichier
+        # Lire le fichier avec gestion d'encodage
         if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
+            # Essayer différents encodages
+            try:
+                df = pd.read_csv(uploaded_file, encoding='utf-8')
+            except UnicodeDecodeError:
+                uploaded_file.seek(0)  # Retour au début du fichier
+                try:
+                    df = pd.read_csv(uploaded_file, encoding='latin-1')
+                except:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, encoding='iso-8859-1', errors='ignore')
         else:
             df = pd.read_excel(uploaded_file)
         
         st.success(f"✅ Fichier chargé : {uploaded_file.name}")
         
-        # Analyser
+        # Analyser avec détection automatique
         with st.spinner("🔍 Analyse en cours..."):
             results = validate_dataframe(df)
+        
+        # Afficher les colonnes détectées automatiquement
+        if 'detected_columns' in results:
+            detected = results['detected_columns']
+            
+            if detected['email'] or detected['phone']:
+                st.info("🔍 **Détection automatique des colonnes** (basée sur l'analyse du contenu)")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if detected['email']:
+                        st.success(f"📧 **Emails détectés :** `{', '.join(detected['email'])}`")
+                    else:
+                        st.warning("📧 Aucune colonne email détectée")
+                
+                with col2:
+                    if detected['phone']:
+                        st.success(f"📱 **Téléphones détectés :** `{', '.join(detected['phone'])}`")
+                    else:
+                        st.warning("📱 Aucune colonne téléphone détectée")
+                
+                st.divider()
         
         # SCORE DE QUALITÉ
         st.header("📊 Score de Qualité")
@@ -156,6 +189,16 @@ if uploaded_file:
             with col2:
                 st.metric("Cellules totales", results['total_rows'] * results['total_columns'])
                 st.metric("Score de qualité", f"{score}/100")
+            
+            # Afficher les types de colonnes détectés
+            if 'detected_columns' in results:
+                st.subheader("Types de colonnes détectés")
+                detected = results['detected_columns']
+                types_df = pd.DataFrame({
+                    'Colonne': list(detected['all_types'].keys()),
+                    'Type Détecté': list(detected['all_types'].values())
+                })
+                st.dataframe(types_df, use_container_width=True)
         
         with tab2:
             st.subheader("📊 Visualisations")
@@ -229,6 +272,7 @@ if uploaded_file:
     except Exception as e:
         st.error(f"❌ Erreur lors de la lecture du fichier : {e}")
         st.info("💡 Vérifiez que votre fichier est bien formaté")
+        st.code(str(e), language="python")
 
 else:
     # Message d'accueil
@@ -241,8 +285,8 @@ else:
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("### 🔍 Détection Automatique")
-        st.write("Identifie instantanément les problèmes dans vos données")
+        st.markdown("### 🔍 Détection Intelligente")
+        st.write("Analyse automatique du contenu, pas besoin de nommer vos colonnes")
     
     with col2:
         st.markdown("### 📊 Score de Qualité")

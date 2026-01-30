@@ -1,6 +1,8 @@
 import re
 import pandas as pd
 
+from .column_detector import auto_detect_columns, get_detection_confidence
+
 def validate_email(email):
     """Valide le format d'un email"""
     if pd.isna(email) or email == "":
@@ -66,12 +68,21 @@ def detect_missing_values(df):
 
 def validate_dataframe(df):
     """Analyse complète d'un DataFrame"""
+    
+    # DÉTECTION AUTOMATIQUE DES COLONNES PAR ANALYSE DU CONTENU
+    detected = auto_detect_columns(df)
+    
     results = {
         'total_rows': len(df),
         'total_columns': len(df.columns),
         'duplicates': detect_duplicates(df),
-        'missing_values': detect_missing_values(df)
+        'missing_values': detect_missing_values(df),
+        'detected_columns': detected  # Ajouter les colonnes détectées
     }
+    
+    # Utiliser les colonnes détectées automatiquement
+    email_columns = detected['email']
+    phone_columns = detected['phone']
     
     # Détecter les colonnes email
     email_columns = [col for col in df.columns if 'mail' in col.lower()]
