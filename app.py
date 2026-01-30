@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
+import io
 from utils.validators import validate_dataframe
 from utils.visualizations import (
     create_score_gauge,
@@ -8,6 +10,8 @@ from utils.visualizations import (
     create_quality_distribution_pie,
     create_column_quality_bar
 )
+from utils.pdf_generator import create_pdf_report
+from utils.data_cleaner import clean_dataframe, get_cleaning_preview
 
 # Configuration
 st.set_page_config(
@@ -49,6 +53,8 @@ with st.sidebar:
     - Données manquantes
     - Score de qualité
     - Graphiques interactifs
+    - Génération de rapports PDF
+    - Nettoyage automatique
     """)
     
     st.divider()
@@ -169,6 +175,134 @@ if uploaded_file:
                 label="📊 Colonnes",
                 value=results['total_columns']
             )
+        
+        # BOUTON TÉLÉCHARGER RAPPORT PDF
+        st.divider()
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            if st.button("📄 Générer Rapport PDF", type="primary", use_container_width=True):
+                with st.spinner("📝 Génération du rapport en cours..."):
+                    pdf_buffer = create_pdf_report(df, results)
+                    
+                    st.download_button(
+                        label="⬇️ Télécharger le Rapport PDF",
+                        data=pdf_buffer,
+                        file_name=f"rapport_datatchek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        type="primary",
+                        use_container_width=True
+                    )
+                    
+                    st.success("✅ Rapport généré avec succès !")
+        
+        st.divider()
+        
+        # NETTOYAGE AUTOMATIQUE
+        st.header("🧹 Nettoyage Automatique")
+        
+        with st.expander("⚙️ Options de nettoyage", expanded=False):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                remove_dupes = st.checkbox("Supprimer les doublons", value=True)
+            
+            with col2:
+                clean_emails_opt = st.checkbox("Nettoyer les emails", value=True)
+            
+            with col3:
+                clean_phones_opt = st.checkbox("Standardiser les téléphones", value=True)
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            if st.button("🧹 Nettoyer les Données", type="secondary", use_container_width=True):
+                with st.spinner("🔄 Nettoyage en cours..."):
+                    detected = results.get('detected_columns', {})
+                    df_clean, clean_stats = clean_dataframe(
+                        df, 
+                        detected_columns=detected,
+                        remove_dupes=remove_dupes,
+                        clean_emails=clean_emails_opt,
+                        clean_phones=clean_phones_opt
+                    )
+                    
+                    # Stocker dans session state
+                    st.session_state['df_clean'] = df_clean
+                    st.session_state['clean_stats'] = clean_stats
+                    
+                    st.success("✅ Nettoyage terminé !")
+        
+        # Afficher les résultats du nettoyage
+        if 'df_clean' in st.session_state and 'clean_stats' in st.session_state:
+            st.divider()
+            
+            clean_stats = st.session_state['clean_stats']
+            df_clean = st.session_state['df_clean']
+            
+            st.subheader("📊 Résultats du Nettoyage")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric(
+                    label="📋 Lignes Initiales",
+                    value=clean_stats['original_rows']
+                )
+            
+            with col2:
+                st.metric(
+                    label="🔄 Doublons Supprimés",
+                    value=clean_stats['duplicates_removed'],
+                    delta=f"-{clean_stats['duplicates_removed']}",
+                    delta_color="normal"
+                )
+            
+            with col3:
+                st.metric(
+                    label="✉️ Emails Nettoyés",
+                    value=clean_stats['emails_cleaned']
+                )
+            
+            with col4:
+                st.metric(
+                    label="📱 Téléphones Nettoyés",
+                    value=clean_stats['phones_cleaned']
+                )
+            
+            # Aperçu des données nettoyées
+            st.subheader("👀 Aperçu des Données Nettoyées")
+            st.dataframe(df_clean.head(20), use_container_width=True)
+            
+            # Bouton de téléchargement
+            col1, col2, col3 = st.columns([1, 2, 1])
+            
+            with col2:
+                # Préparer le fichier pour téléchargement
+                if uploaded_file.name.endswith('.csv'):
+                    csv = df_clean.to_csv(index=False).encode('utf-8')
+                    file_ext = 'csv'
+                    mime_type = 'text/csv'
+                    download_data = csv
+                else:
+                    # Pour Excel
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df_clean.to_excel(writer, index=False, sheet_name='Données Nettoyées')
+                    download_data = output.getvalue()
+                    file_ext = 'xlsx'
+                    mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                
+                st.download_button(
+                    label="⬇️ Télécharger les Données Nettoyées",
+                    data=download_data,
+                    file_name=f"donnees_nettoyees_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_ext}",
+                    mime=mime_type,
+                    type="primary",
+                    use_container_width=True
+                )
+        
+        st.divider()
         
         # DÉTAILS
         st.header("🔍 Analyse Détaillée")
