@@ -69,6 +69,32 @@ class CIValidators:
                     return True
         
         return False
+
+   def generate_recommendations(results):
+   	 """Génère une liste de recommandations basées sur les résultats du DataFrame"""
+   	 recommendations = []
+
+    	if results['duplicates']['count'] > 0:
+        recommendations.append(f"Supprimer les {results['duplicates']['count']} doublons détectés")
+
+    	if results['missing_values']['total'] > 0:
+        recommendations.append(f"Traiter les {results['missing_values']['total']} valeurs manquantes")
+
+    	if 'emails' in results:
+        for col, data in results['emails'].items():
+            if data['invalid'] > 0:
+                recommendations.append(f"Corriger les {data['invalid']} emails invalides dans '{col}'")
+
+    	if 'phones' in results:
+        for col, data in results['phones'].items():
+            if data['invalid'] > 0:
+                recommendations.append(f"Corriger les {data['invalid']} téléphones invalides dans '{col}'")
+
+    	if not recommendations:
+        recommendations.append("Vos données sont de bonne qualité ! Continuez ainsi.")
+
+    return recommendations
+
     
     @staticmethod
     def validate_email(email: Any) -> bool:
