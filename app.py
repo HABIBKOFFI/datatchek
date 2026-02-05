@@ -52,9 +52,67 @@ try:
     I18N_AVAILABLE = True
 except ImportError:
     I18N_AVAILABLE = False
-    # Fallback si traductions pas disponibles
+    
+    # Fallback complet si traductions pas disponibles
     def get_text(key, lang='fr', **kwargs):
-        return key
+        """Fallback pour les traductions"""
+        translations = {
+            'quality_excellent': 'Qualité Exceptionnelle' if lang == 'fr' else 'Exceptional Quality',
+            'quality_good': 'Excellente Qualité' if lang == 'fr' else 'Excellent Quality',
+            'quality_average': 'Bonne Qualité' if lang == 'fr' else 'Good Quality',
+            'quality_poor': 'Qualité À Améliorer' if lang == 'fr' else 'Quality Needs Improvement',
+            'level_expert': 'Expert Data Quality' if lang == 'fr' else 'Data Quality Expert',
+            'level_master': 'Data Quality Master',
+            'level_advanced': 'Data Quality Avancé' if lang == 'fr' else 'Data Quality Advanced',
+            'level_beginner': 'Data Quality Débutant' if lang == 'fr' else 'Data Quality Beginner',
+            'lines_analyzed': 'Lignes Analysées' if lang == 'fr' else 'Lines Analyzed',
+            'columns_detected': 'Colonnes Détectées' if lang == 'fr' else 'Columns Detected',
+            'duplicates': 'Doublons' if lang == 'fr' else 'Duplicates',
+            'missing': 'Données Manquantes' if lang == 'fr' else 'Missing Data',
+            'quality_avg': 'Qualité Moyenne' if lang == 'fr' else 'Average Quality',
+            'conformity': 'Conformité' if lang == 'fr' else 'Conformity',
+            'generate_pdf': 'Générer Rapport PDF' if lang == 'fr' else 'Generate PDF Report',
+            'clean_data': 'Nettoyer Données' if lang == 'fr' else 'Clean Data',
+            'export_analysis': 'Exporter Analyse' if lang == 'fr' else 'Export Analysis',
+            'recommendations': 'Recommandations Prioritaires' if lang == 'fr' else 'Priority Recommendations',
+            'priority_high': 'HAUTE PRIORITÉ' if lang == 'fr' else 'HIGH PRIORITY',
+            'priority_medium': 'PRIORITÉ MOYENNE' if lang == 'fr' else 'MEDIUM PRIORITY',
+            'priority_low': 'PRIORITÉ BASSE' if lang == 'fr' else 'LOW PRIORITY',
+            'tab_data': 'Données' if lang == 'fr' else 'Data',
+            'tab_graphs': 'Graphiques' if lang == 'fr' else 'Charts',
+            'tab_distribution': 'Distribution',
+            'tab_correlations': 'Corrélations' if lang == 'fr' else 'Correlations',
+            'tab_outliers': 'Anomalies' if lang == 'fr' else 'Outliers',
+            'tab_duplicates': 'Doublons' if lang == 'fr' else 'Duplicates',
+            'tab_missing': 'Valeurs Manquantes' if lang == 'fr' else 'Missing Values',
+            'no_duplicates': 'Aucun doublon détecté - Excellent' if lang == 'fr' else 'No duplicates detected - Excellent',
+            'no_missing': 'Aucune donnée manquante - Parfait' if lang == 'fr' else 'No missing data - Perfect'
+        }
+        return translations.get(key, key)
+    
+    def interpret_percentage(pct, lang='fr'):
+        """Fallback pour interpréter les pourcentages"""
+        if pct == 0:
+            return "Aucune" if lang == 'fr' else "None"
+        elif pct < 12.5:
+            return "1 donnée sur 8" if lang == 'fr' else "1 in 8"
+        elif pct < 25:
+            return f"{pct:.1f}% (Faible)" if lang == 'fr' else f"{pct:.1f}% (Low)"
+        elif pct < 50:
+            return f"{pct:.1f}% (Modéré)" if lang == 'fr' else f"{pct:.1f}% (Moderate)"
+        else:
+            return f"{pct:.1f}% (Élevé)" if lang == 'fr' else f"{pct:.1f}% (High)"
+    
+    def format_missing_value(value):
+        """Fallback pour formater les valeurs manquantes"""
+        if pd.isna(value) or value is None or value == 'NaN' or value == 'None':
+            return "Donnée manquante"
+        elif value == True:
+            return "Oui"
+        elif value == False:
+            return "Non"
+        else:
+            return value
 
 
 # ======================
@@ -362,12 +420,13 @@ header {visibility: hidden;}
 # ======================
 def get_quality_badge(score):
     """Retourne le badge selon le score"""
+    lang = st.session_state.lang
     if score >= 90:
         return {
             'name': 'PLATINUM',
             'emoji': '💎',
             'class': 'badge-platinum',
-            'message': get_text('quality_excellent', st.session_state.lang),
+            'message': get_text('quality_excellent', lang),
             'points': 1000
         }
     elif score >= 75:
@@ -375,7 +434,7 @@ def get_quality_badge(score):
             'name': 'GOLD',
             'emoji': '🏆',
             'class': 'badge-gold',
-            'message': get_text('quality_good', st.session_state.lang),
+            'message': get_text('quality_good', lang),
             'points': 750
         }
     elif score >= 60:
@@ -383,7 +442,7 @@ def get_quality_badge(score):
             'name': 'SILVER',
             'emoji': '🥈',
             'class': 'badge-silver',
-            'message': get_text('quality_average', st.session_state.lang),
+            'message': get_text('quality_average', lang),
             'points': 500
         }
     else:
@@ -391,7 +450,7 @@ def get_quality_badge(score):
             'name': 'BRONZE',
             'emoji': '🥉',
             'class': 'badge-bronze',
-            'message': get_text('quality_poor', st.session_state.lang),
+            'message': get_text('quality_poor', lang),
             'points': 250
         }
 
@@ -651,7 +710,10 @@ if uploaded_file:
         
         # Interpréter les métriques en langage naturel
         missing_pct = results['missing_values']['percentage']
-        missing_interpretation = interpret_percentage(missing_pct, lang)
+        try:
+            missing_interpretation = interpret_percentage(missing_pct, lang)
+        except Exception:
+            missing_interpretation = f"{missing_pct:.1f}%"
         
         metrics = [
             ("🔄", get_text('duplicates', lang), results['duplicates']['count']),
@@ -941,28 +1003,40 @@ else:
     
     st.markdown(f"""
     <div class='pro-card animated-card' style='text-align: center; padding: 4rem 2rem;'>
-        <div class='big-emoji' style='font-size: 3rem;'>🚀</div>
+        <div style='font-size: 3rem; margin-bottom: 2rem;'>🚀</div>
         <h2 style='color: #1E293B; margin: 2rem 0 1rem 0;'>{landing_title}</h2>
         <p style='color: #64748B; font-size: 1.125rem; max-width: 600px; margin: 0 auto 2rem auto;'>
             {landing_desc}
         </p>
-        
-        <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem;'>
-            <div>
-                <div style='font-size: 2.5rem; margin-bottom: 1rem;'>⚡</div>
-                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{fast_title}</h3>
-                <p style='color: #64748B;'>{fast_desc}</p>
-            </div>
-            <div>
-                <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎯</div>
-                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{precise_title}</h3>
-                <p style='color: #64748B;'>{precise_desc}</p>
-            </div>
-            <div>
-                <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎮</div>
-                <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{gamified_title}</h3>
-                <p style='color: #64748B;'>{gamified_desc}</p>
-            </div>
-        </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Features cards
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+        <div class='pro-card' style='text-align: center; padding: 2rem;'>
+            <div style='font-size: 2.5rem; margin-bottom: 1rem;'>⚡</div>
+            <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{fast_title}</h3>
+            <p style='color: #64748B;'>{fast_desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class='pro-card' style='text-align: center; padding: 2rem;'>
+            <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎯</div>
+            <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{precise_title}</h3>
+            <p style='color: #64748B;'>{precise_desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class='pro-card' style='text-align: center; padding: 2rem;'>
+            <div style='font-size: 2.5rem; margin-bottom: 1rem;'>🎮</div>
+            <h3 style='color: #1E293B; margin-bottom: 0.5rem;'>{gamified_title}</h3>
+            <p style='color: #64748B;'>{gamified_desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
