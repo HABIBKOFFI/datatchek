@@ -3,6 +3,8 @@
 Système de traduction multilingue pour DataTchek
 """
 
+import pandas as pd
+
 TRANSLATIONS = {
     'fr': {
         # Navigation
@@ -194,17 +196,19 @@ def format_number(value, lang='fr'):
 
 
 def interpret_percentage(pct: float, lang='fr') -> str:
-    """Interprète un pourcentage en langage naturel"""
+    """Interprète un pourcentage de données manquantes en langage naturel"""
     if pct == 0:
-        return get_text('all_data', lang) if lang == 'fr' else get_text('all_data', lang)
+        return "Aucune" if lang == 'fr' else "None"
+    elif pct < 5:
+        return get_text('few_data', lang)
     elif pct < 12.5:
         return get_text('one_in_eight', lang)
     elif pct < 25:
-        return get_text('few_data', lang)
+        return f"{pct:.1f}%" + (" (Modéré)" if lang == 'fr' else " (Moderate)")
     elif pct < 50:
-        return get_text('most_data', lang) if lang == 'en' else "Une partie significative des données"
+        return get_text('half_data', lang) if lang == 'fr' else "Nearly half"
     elif pct < 75:
-        return get_text('half_data', lang)
+        return get_text('most_data', lang)
     else:
         return "La majorité des données" if lang == 'fr' else "Most of the data"
 
