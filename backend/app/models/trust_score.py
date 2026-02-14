@@ -3,10 +3,10 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.types import PortableJSON
 
 
 class TrustScore(Base):
@@ -30,9 +30,9 @@ class TrustScore(Base):
     )  # gold | silver | bronze | fail
     certification: Mapped[str] = mapped_column(String(50), nullable=False)
     is_certifiable: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    breakdown: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    breakdown: Mapped[dict] = mapped_column(PortableJSON, nullable=False)
     improvement_potential: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
+        PortableJSON, nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, index=True

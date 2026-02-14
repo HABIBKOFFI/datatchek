@@ -3,10 +3,10 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.types import PortableJSON
 
 
 class Anomaly(Base):
@@ -32,9 +32,9 @@ class Anomaly(Base):
     financial_impact_eur: Mapped[Decimal | None] = mapped_column(
         Numeric(12, 2), nullable=True
     )
-    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    details: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
     remediation_proposal: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
+        PortableJSON, nullable=True
     )
     status: Mapped[str] = mapped_column(
         String(50), default="open"
