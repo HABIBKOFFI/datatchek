@@ -8,7 +8,6 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 from scipy import stats
-import seaborn as sns
 
 
 def create_distribution_analysis(df, column, max_categories=20):
@@ -121,7 +120,7 @@ def detect_outliers_visualization(df, column):
     """
     Détection et visualisation des outliers (valeurs aberrantes)
     """
-    if df[column].dtype not in [np.number]:
+    if not pd.api.types.is_numeric_dtype(df[column]):
         return None
     
     data = df[column].dropna()
@@ -216,11 +215,24 @@ def create_quality_score_breakdown(results):
     """
     categories = ['Complétude', 'Validité', 'Unicité', 'Cohérence']
     
-    # Calculer scores par catégorie
+    # Calculer scores par catégorie depuis les données réelles
     completeness = 100 - results['missing_values']['percentage']
-    validity = 95  # Exemple - à calculer selon vos règles
+
+    # Validité : basée sur conformité sémantique
+    semantic = results.get('semantic_validation', {})
+    if semantic:
+        conformity_rates = [v.get('conformity_rate', 100) for v in semantic.values()]
+        validity = sum(conformity_rates) / len(conformity_rates) if conformity_rates else 100
+    else:
+        validity = 100
+
     uniqueness = 100 - (results['duplicates']['count'] / results['total_rows'] * 100) if results['total_rows'] > 0 else 100
-    consistency = 90  # Exemple - à calculer
+
+    # Cohérence : basée sur colonnes constantes et cardinalité
+    total_cols = results.get('total_columns', 1)
+    quality_metrics = results.get('quality_metrics', {})
+    low_cardinality_count = sum(1 for m in quality_metrics.values() if m.get('unique_percentage', 100) < 5)
+    consistency = max(0, 100 - (low_cardinality_count / total_cols * 100)) if total_cols > 0 else 100
     
     scores = [completeness, validity, uniqueness, consistency]
     
